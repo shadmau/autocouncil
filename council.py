@@ -130,22 +130,26 @@ def thinking_kwargs(model: str, level: str) -> dict:
     return {"reasoning_effort": level}  # OpenAI and Anthropic via LiteLLM
 
 
-async def review_one(model: str, messages: list[dict], temperature: float, thinking: str) -> dict:
+async def review_one(model: str, messages: list[dict], temperature: float, thinking: str) -> dict | None:
     extra = thinking_kwargs(model, thinking)
     # Both OpenAI and Anthropic require temperature=1 when extended thinking is active
     if "reasoning_effort" in extra:
         temperature = 1.0
-    response = await acompletion(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        response_format={"type": "json_object"},
-        **extra,
-    )
-    raw = response.choices[0].message.content
-    parsed = parse_review(raw)
-    parsed["model"] = model
-    return parsed
+    try:
+        response = await acompletion(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            response_format={"type": "json_object"},
+            **extra,
+        )
+        raw = response.choices[0].message.content
+        parsed = parse_review(raw)
+        parsed["model"] = model
+        return parsed
+    except Exception as e:
+        print(f"[warning] {model} failed: {e}", file=sys.stderr)
+        return None
 
 
 def summarize_texts(texts: list[str]) -> list[str]:
@@ -155,17 +159,28 @@ def summarize_texts(texts: list[str]) -> list[str]:
     return [text for text, _count in ordered[:3]]
 
 
+def aggregate_verdict(reviews: list[dict]) -> str:
+    counts = Counter(r["verdict"] for r in reviews)
+    n = len(reviews)
+    if n == 1:
+        return reviews[0]["verdict"]
+    threshold = 2  # majority for both 2-model and 3-model cases
+    if counts["PASS"] >= threshold:
+        return "PASS"
+    if counts["BLOCK"] >= threshold:
+        return "BLOCK"
+    return "REVISE"
+
+
 async def run(models: list[str], mode: str, content: str, purpose: str, static_context: str, extra_context: str, temperature: float, thinking: str) -> dict:
     messages = build_messages(mode, content, purpose, static_context, extra_context)
-    reviews = await asyncio.gather(*[review_one(model, messages, temperature, thinking) for model in models])
+    raw_results = await asyncio.gather(*[review_one(model, messages, temperature, thinking) for model in models])
+    reviews = [r for r in raw_results if r is not None]
 
-    verdict_counts = Counter(r["verdict"] for r in reviews)
-    if verdict_counts["PASS"] >= 2:
-        overall_verdict = "PASS"
-    elif verdict_counts["BLOCK"] >= 2:
-        overall_verdict = "BLOCK"
-    else:
-        overall_verdict = "REVISE"
+    if not reviews:
+        raise SystemExit("All model calls failed. Check your API keys and model names.")
+
+    overall_verdict = aggregate_verdict(reviews)
 
     result = {
         "mode": mode,
@@ -185,8 +200,8 @@ def get_models(cli_models: str | None) -> list[str]:
         "gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview",
     )
     models = [m.strip() for m in raw.split(",") if m.strip()]
-    if len(models) < 3:
-        raise SystemExit("Please provide at least 3 models via --models or COUNCIL_MODELS")
+    if not models:
+        raise SystemExit("No models specified. Set --models or COUNCIL_MODELS.")
     return models[:3]
 
 

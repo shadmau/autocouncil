@@ -86,7 +86,7 @@ python council.py \
   --models "gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
 ```
 
-Exactly 3 models are used. If you pass more than 3, the extras are ignored.
+1 to 3 models are supported. 3 is recommended for diverse opinions. If you pass more than 3, the extras are ignored. If a model fails (e.g. missing API key), the run continues with the remaining successful reviews.
 
 ## Options
 
@@ -100,7 +100,7 @@ Exactly 3 models are used. If you pass more than 3, the extras are ignored.
 | `--context-file`        | —              | Per-run situation from a file             |
 | `--static-context`      | —              | Stable background context as inline text  |
 | `--static-context-file` | —              | Stable background context from a file     |
-| `--models`              | env or default | Comma-separated list of 3 models          |
+| `--models`              | env or default | Comma-separated list of 1–3 models        |
 | `--temperature`         | `0.2`          | Sampling temperature                      |
 | `--thinking`            | `medium`       | Reasoning effort: `low`, `medium`, `high` |
 
@@ -156,30 +156,11 @@ autocouncil returns a single JSON object to stdout:
 
 ### `plan_review`
 
-Judges whether a plan is good enough to act on.
-
-Looks for:
-
-- a clear objective
-- concrete next steps
-- realistic scope
-- awareness of important risks or missing information
-
-Use it before you start something.
+Judges whether a plan is good enough to act on: clear objective, concrete next steps, realistic scope, and awareness of key risks.
 
 ### `output_review`
 
-Judges whether a finished output is good enough for its intended use.
-
-Looks for:
-
-- correctness
-- usefulness
-- clarity
-- completeness
-- trustworthiness for external use
-
-Use it before you ship, send, or rely on something.
+Judges whether an output is good enough for its intended use: correctness, usefulness, clarity, completeness, and trustworthiness for external use.
 
 ## Agent loop
 
@@ -194,11 +175,20 @@ Typical pattern:
 5. autocouncil reviews the output
 6. if the verdict is `PASS`, the output is used or sent
 
-This helps an agent improve plans and outputs before moving forward, without building a full multi-agent system.
+## Using AutoCouncil with OpenClaw
+
+AutoCouncil can be integrated as a review step in an OpenClaw workspace.
+
+For a clean setup:
+
+- keep one local installation path
+- document the local command usage in `TOOLS.md`
+- reuse an existing working installation instead of creating duplicate copies
+- keep the integration minimal
 
 ## Static context
 
-Use static context for stable background that should apply to every review.
+Use static context for stable background that applies to every review.
 
 Examples:
 
@@ -225,11 +215,3 @@ Good for:
 - checking outputs before sending
 - getting a fast second opinion when uncertain
 - adding a simple review gate to an agent pipeline
-
-## Limitations
-
-- every run makes 3 API calls
-- costs are roughly 3x a single-model check
-- no streaming
-- no retries
-- models do not see each other’s responses
