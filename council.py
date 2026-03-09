@@ -205,6 +205,18 @@ def get_models(cli_models: str | None) -> list[str]:
     return models[:3]
 
 
+VALID_THINKING = {"low", "medium", "high"}
+
+
+def get_thinking(cli_thinking: str | None) -> str:
+    env_thinking = os.getenv("COUNCIL_THINKING", "").strip().lower() or None
+    if env_thinking and env_thinking not in VALID_THINKING:
+        raise SystemExit(f"Invalid COUNCIL_THINKING value: {env_thinking!r}. Must be one of: low, medium, high")
+    if cli_thinking and env_thinking:
+        raise SystemExit("Conflict: --thinking and COUNCIL_THINKING are both set. Use only one.")
+    return cli_thinking or env_thinking or "medium"
+
+
 def get_content(input_file: str | None, text: str | None) -> str:
     if text and text.strip():
         return text.strip()
@@ -227,14 +239,15 @@ def main() -> None:
     parser.add_argument("--static-context-file", default="", help="Stable background context from a file")
     parser.add_argument("--models", default="", help="Comma-separated list of 3 models")
     parser.add_argument("--temperature", type=float, default=0.2)
-    parser.add_argument("--thinking", choices=["low", "medium", "high"], default="medium",
-                        help="Reasoning effort level (default: medium)")
+    parser.add_argument("--thinking", choices=["low", "medium", "high"], default=None,
+                        help="Reasoning effort level (default: medium; overridable via COUNCIL_THINKING)")
     args = parser.parse_args()
 
     content = get_content(args.input_file, args.text)
     extra_context = "\n\n".join(filter(None, [args.context.strip(), read_text(args.context_file)]))
     static_context = "\n\n".join(filter(None, [args.static_context.strip(), read_text(args.static_context_file)]))
     models = get_models(args.models)
+    thinking = get_thinking(args.thinking)
 
     result = asyncio.run(
         run(
@@ -245,7 +258,7 @@ def main() -> None:
             static_context=static_context,
             extra_context=extra_context,
             temperature=args.temperature,
-            thinking=args.thinking,
+            thinking=thinking,
         )
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

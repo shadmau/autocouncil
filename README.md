@@ -2,13 +2,14 @@
 
 Run an OpenClaw agent plan or output past three LLMs and get a fast **“good enough to proceed?”** verdict.
 
-A CLI tool for adding lightweight review to OpenClaw agent workflows.
+A CLI tool for adding self-improvement loops to OpenClaw agents.
 
 ## How it works
 
-1. Send the same plan or output to 3 models in parallel
+1. Send the same plan or output to 1–3 models in parallel
 2. Each returns `PASS`, `REVISE`, or `BLOCK` plus one key issue
 3. autocouncil aggregates that into one JSON verdict
+4. the agent can revise and run the review again until the result is good enough to proceed
 
 ## Install
 
@@ -164,16 +165,15 @@ Judges whether an output is good enough for its intended use: correctness, usefu
 
 ## Agent loop
 
-autocouncil is designed to sit inside an OpenClaw agent loop as a lightweight review step.
+autocouncil is designed to sit inside an OpenClaw agent loop as a self-improvement step.
 
 Typical pattern:
 
-1. the agent drafts a plan
-2. autocouncil reviews the plan
-3. if the verdict is `PASS`, the agent executes
-4. the agent produces an output
-5. autocouncil reviews the output
-6. if the verdict is `PASS`, the output is used or sent
+1. the agent drafts a plan or output
+2. autocouncil reviews it
+3. if the verdict is `REVISE`, the agent improves it and runs the review again
+4. if the verdict is `PASS`, the agent proceeds
+5. if the verdict is `BLOCK`, the agent fixes the blocking issue if possible and loops; otherwise, it surfaces the issue as a blocker
 
 ## Using AutoCouncil with OpenClaw
 
@@ -209,9 +209,5 @@ Keep it short and plain-text.
 
 ## When to use this
 
-Good for:
-
-- reviewing AI-generated plans before acting on them
-- checking outputs before sending
-- getting a fast second opinion when uncertain
-- adding a simple review gate to an agent pipeline
+- running iterative self-improvement loops on plans and outputs
+- getting a second opinion when uncertain
