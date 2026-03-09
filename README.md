@@ -1,8 +1,8 @@
 # autocouncil
 
-Run a plan or output past three LLMs and get a fast **“good enough to proceed?”** verdict.
+Run an OpenClaw agent plan or output past three LLMs and get a fast **“good enough to proceed?”** verdict.
 
-A CLI tool for adding lightweight review to agentic workflows.
+A CLI tool for adding lightweight review to OpenClaw agent workflows.
 
 ## How it works
 
@@ -181,16 +181,18 @@ Use it before you ship, send, or rely on something.
 
 ## Agent loop
 
-autocouncil works as a lightweight review step inside an AI agent loop.
+autocouncil is designed to sit inside an OpenClaw agent loop as a lightweight review step.
 
 Typical pattern:
 
 1. the agent drafts a plan
 2. autocouncil reviews the plan
-3. if the verdict is good enough, the agent executes
+3. if the verdict is `PASS`, the agent executes
 4. the agent produces an output
 5. autocouncil reviews the output
-6. if the verdict is good enough, the output is used or sent
+6. if the verdict is `PASS`, the output is used or sent
+
+This helps an agent improve plans and outputs before moving forward, without building a full multi-agent system.
 
 ## Static context
 
