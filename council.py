@@ -8,7 +8,10 @@ import sys
 from collections import Counter
 from statistics import mean
 
+import litellm
 from litellm import acompletion
+
+litellm.drop_params = True
 
 PLAN_SYSTEM = """You are one member of a 3-model review council.
 Your job is to judge whether a plan is good enough to proceed now.
@@ -128,12 +131,16 @@ def thinking_kwargs(model: str, level: str) -> dict:
 
 
 async def review_one(model: str, messages: list[dict], temperature: float, thinking: str) -> dict:
+    extra = thinking_kwargs(model, thinking)
+    # Both OpenAI and Anthropic require temperature=1 when extended thinking is active
+    if "reasoning_effort" in extra:
+        temperature = 1.0
     response = await acompletion(
         model=model,
         messages=messages,
         temperature=temperature,
         response_format={"type": "json_object"},
-        **thinking_kwargs(model, thinking),
+        **extra,
     )
     raw = response.choices[0].message.content
     parsed = parse_review(raw)

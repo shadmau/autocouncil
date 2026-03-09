@@ -13,6 +13,8 @@ A CLI tool for adding lightweight review to OpenClaw agent workflows.
 ## Install
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install litellm
 ```
 
