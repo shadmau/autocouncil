@@ -6,6 +6,7 @@ import os
 import re
 import sys
 from collections import Counter
+from datetime import datetime, timezone
 from statistics import mean
 
 import litellm
@@ -249,6 +250,7 @@ def main() -> None:
     models = get_models(args.models)
     thinking = get_thinking(args.thinking)
 
+    messages = build_messages(args.mode, content, args.purpose, static_context, extra_context)
     result = asyncio.run(
         run(
             models=models,
@@ -261,6 +263,28 @@ def main() -> None:
             thinking=thinking,
         )
     )
+
+    log_dir = os.getenv("COUNCIL_LOG_DIR", "").strip()
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        log_entry = {
+            "timestamp": ts,
+            "mode": args.mode,
+            "models": models,
+            "temperature": args.temperature,
+            "thinking": thinking,
+            "purpose": args.purpose,
+            "static_context": static_context,
+            "extra_context": extra_context,
+            "content": content,
+            "messages": messages,
+            "result": result,
+        }
+        log_path = os.path.join(log_dir, f"council_{ts}.json")
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(log_entry, f, ensure_ascii=False, indent=2)
+
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

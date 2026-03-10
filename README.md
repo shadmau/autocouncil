@@ -1,15 +1,15 @@
 # autocouncil
 
-Run an OpenClaw agent plan or output past three LLMs and get a fast **“good enough to proceed?”** verdict.
-
 A CLI tool for adding self-improvement loops to OpenClaw agents.
+
+Loop an OpenClaw agent’s plan or output through LLMs until it’s good enough to proceed.
 
 ## How it works
 
 1. Send the same plan or output to 1–3 models in parallel
 2. Each returns `PASS`, `REVISE`, or `BLOCK` plus one key issue
 3. autocouncil aggregates that into one JSON verdict
-4. the agent can revise and run the review again until the result is good enough to proceed
+4. the agent can revise and re-run the review until the result is good enough to proceed
 
 ## Install
 
@@ -91,19 +91,19 @@ python council.py \
 
 ## Options
 
-| Flag                    | Default        | Description                               |
-| ----------------------- | -------------- | ----------------------------------------- |
-| `--mode`                | required       | `plan_review` or `output_review`          |
-| `--input-file`          | —              | File to review                            |
-| `--text`                | —              | Inline text to review                     |
-| `--purpose`             | `""`           | One sentence on what this is for          |
-| `--context`             | —              | Per-run situation as inline text          |
-| `--context-file`        | —              | Per-run situation from a file             |
-| `--static-context`      | —              | Stable background context as inline text  |
-| `--static-context-file` | —              | Stable background context from a file     |
-| `--models`              | env or default | Comma-separated list of 1–3 models        |
-| `--temperature`         | `0.2`          | Sampling temperature                      |
-| `--thinking`            | `medium`       | Reasoning effort: `low`, `medium`, `high` |
+| Flag                    | Default        | Description                                                         |
+| ----------------------- | -------------- | ------------------------------------------------------------------- |
+| `--mode`                | required       | `plan_review` or `output_review`                                    |
+| `--input-file`          | —              | File to review                                                      |
+| `--text`                | —              | Inline text to review                                               |
+| `--purpose`             | `""`           | One sentence on what this is for                                    |
+| `--context`             | —              | Per-run situation as inline text                                    |
+| `--context-file`        | —              | Per-run situation from a file                                       |
+| `--static-context`      | —              | Stable background context as inline text                            |
+| `--static-context-file` | —              | Stable background context from a file                               |
+| `--models`              | env or default | Comma-separated list of 1–3 models                                  |
+| `--temperature`         | `0.2`          | Sampling temperature                                                |
+| `--thinking`            | `medium`       | Reasoning effort: `low`, `medium`, `high` (env: `COUNCIL_THINKING`) |
 
 Content priority: `--text` > `--input-file` > stdin.
 
@@ -116,11 +116,14 @@ Default models (if `--models` and `COUNCIL_MODELS` are both unset):
 gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview
 ```
 
-You can also set the default via env:
+You can also set defaults via env:
 
 ```bash
 export COUNCIL_MODELS="gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
+export COUNCIL_THINKING="medium"   # low | medium | high
 ```
+
+`COUNCIL_THINKING` sets the reasoning effort when `--thinking` is not passed on the CLI. If both are set at the same time, autocouncil exits with an error.
 
 ## Output
 
@@ -177,7 +180,7 @@ Typical pattern:
 
 ## Using AutoCouncil with OpenClaw
 
-AutoCouncil can be integrated as a review step in an OpenClaw workspace.
+AutoCouncil is designed to plug into an OpenClaw workspace as a review loop, with the loop defined in `AGENTS.md` and/or `HEARTBEAT.md`.
 
 For a clean setup:
 
@@ -210,4 +213,4 @@ Keep it short and plain-text.
 ## When to use this
 
 - running iterative self-improvement loops on plans and outputs
-- getting a second opinion when uncertain
+- deciding whether a draft is good enough to ship or needs another revision
