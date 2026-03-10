@@ -84,7 +84,7 @@ python council.py \
 python council.py \
   --mode output_review \
   --input-file report.txt \
-  --models "gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
+  --models "openai/responses/openai/responses/gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
 ```
 
 1 to 3 models are supported. 3 is recommended for diverse opinions. If you pass more than 3, the extras are ignored. If a model fails (e.g. missing API key), the run continues with the remaining successful reviews.
@@ -113,14 +113,16 @@ Same for `--static-context` and `--static-context-file`.
 Default models (if `--models` and `COUNCIL_MODELS` are both unset):
 
 ```bash
-gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview
+openai/responses/gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview
 ```
 
 You can also set defaults via env:
 
 ```bash
-export COUNCIL_MODELS="gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
-export COUNCIL_THINKING="medium"   # low | medium | high
+export COUNCIL_MODELS="openai/responses/gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
+export COUNCIL_THINKING="high"     # low | medium | high
+                                   # high → xhigh on OpenAI Responses API
+                                   # high → adaptive thinking on Claude Opus 4.6
 ```
 
 `COUNCIL_THINKING` sets the reasoning effort when `--thinking` is not passed on the CLI. If both are set at the same time, autocouncil exits with an error.

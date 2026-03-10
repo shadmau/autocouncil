@@ -126,27 +126,41 @@ def build_messages(mode: str, content: str, purpose: str, static_context: str, e
 
 
 def thinking_kwargs(model: str, level: str) -> dict:
-    if model.startswith("gemini/"):
+    m = model.lower()
+    if m.startswith("gemini/"):
         return {"thinking_level": level}
-    return {"reasoning_effort": level}  # OpenAI and Anthropic via LiteLLM
+    if "claude" in m:
+        # Anthropic: low/medium/high — LiteLLM maps high→adaptive for Opus 4.6
+        return {"reasoning_effort": level}
+    if m.startswith("openai/responses/"):
+        # Responses API: pass native dict to bypass LiteLLM's string validation
+        # Map high→xhigh (OpenAI's max) for parity with Claude's high
+        mapped = "xhigh" if level == "high" else level
+        return {"reasoning": {"effort": mapped}}
+    # Unknown model type — no reasoning support
+    return {}
 
 
 async def review_one(model: str, messages: list[dict], temperature: float, thinking: str) -> dict | None:
     extra = thinking_kwargs(model, thinking)
+    if not extra:
+        print(f"[info] {model}: reasoning_effort not supported — running without extended thinking", file=sys.stderr)
     # Both OpenAI and Anthropic require temperature=1 when extended thinking is active
-    if "reasoning_effort" in extra:
+    if "reasoning_effort" in extra or "reasoning" in extra:
         temperature = 1.0
+    # Responses API rejects response_format when prompt doesn't contain lowercase "json"
+    fmt = {} if model.lower().startswith("openai/responses/") else {"response_format": {"type": "json_object"}}
     try:
         response = await acompletion(
             model=model,
             messages=messages,
             temperature=temperature,
-            response_format={"type": "json_object"},
+            **fmt,
             **extra,
         )
         raw = response.choices[0].message.content
         parsed = parse_review(raw)
-        parsed["model"] = model
+        parsed["model"] = model.removeprefix("openai/responses/")
         return parsed
     except Exception as e:
         print(f"[warning] {model} failed: {e}", file=sys.stderr)
@@ -198,7 +212,7 @@ async def run(models: list[str], mode: str, content: str, purpose: str, static_c
 def get_models(cli_models: str | None) -> list[str]:
     raw = cli_models or os.getenv(
         "COUNCIL_MODELS",
-        "gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview",
+        "openai/responses/gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview",
     )
     models = [m.strip() for m in raw.split(",") if m.strip()]
     if not models:
@@ -212,7 +226,7 @@ VALID_THINKING = {"low", "medium", "high"}
 def get_thinking(cli_thinking: str | None) -> str:
     env_thinking = os.getenv("COUNCIL_THINKING", "").strip().lower() or None
     if env_thinking and env_thinking not in VALID_THINKING:
-        raise SystemExit(f"Invalid COUNCIL_THINKING value: {env_thinking!r}. Must be one of: low, medium, high")
+        raise SystemExit(f"Invalid COUNCIL_THINKING value: {env_thinking!r}. Must be one of: {', '.join(sorted(VALID_THINKING))}")
     if cli_thinking and env_thinking:
         raise SystemExit("Conflict: --thinking and COUNCIL_THINKING are both set. Use only one.")
     return cli_thinking or env_thinking or "medium"
