@@ -78,54 +78,66 @@ python council.py \
   --purpose "Is this plan reasonable?"
 ```
 
-### Specify models explicitly
+### Native CLI council members
+
+Use `--members` to run council members through local CLI tools instead of (or alongside) API calls.
+
+Format: `<backend>:<model>:<effort>`, comma-separated. Up to 3 members. Effort: `low`, `medium`, or `high`.
+
+Backends: `litellm` (API via LiteLLM), `claude_cli` (local `claude` binary), `codex_cli` (local `codex` binary).
 
 ```bash
-python council.py \
-  --mode output_review \
-  --input-file report.txt \
-  --models "openai/responses/openai/responses/gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
+# Codex only
+python council.py --mode plan_review --input-file plan.txt \
+  --members "codex_cli:gpt-5.4:high"
+
+# Claude CLI + Codex CLI
+python council.py --mode output_review --input-file report.txt \
+  --members "claude_cli:claude-opus-4-6:high,codex_cli:gpt-5.4:high"
+
+# Mixed: API + local CLIs
+python council.py --mode plan_review --input-file plan.txt \
+  --members "litellm:gemini/gemini-3.1-pro-preview:medium,claude_cli:claude-opus-4-6:high,codex_cli:gpt-5.4:high"
+
+# Default API path (no --members needed, uses hardcoded litellm defaults)
+python council.py --mode plan_review --input-file plan.txt
 ```
 
-1 to 3 models are supported. 3 is recommended for diverse opinions. If you pass more than 3, the extras are ignored. If a model fails (e.g. missing API key), the run continues with the remaining successful reviews.
+See available backends with:
+
+```bash
+python council.py --doctor
+```
+
+1 to 3 members are supported. If a member fails (e.g. missing binary, expired auth, bad API key), the run continues with the remaining successful reviews.
 
 ## Options
 
-| Flag                    | Default        | Description                                                         |
-| ----------------------- | -------------- | ------------------------------------------------------------------- |
-| `--mode`                | required       | `plan_review` or `output_review`                                    |
-| `--input-file`          | —              | File to review                                                      |
-| `--text`                | —              | Inline text to review                                               |
-| `--purpose`             | `""`           | One sentence on what this is for                                    |
-| `--context`             | —              | Per-run situation as inline text                                    |
-| `--context-file`        | —              | Per-run situation from a file                                       |
-| `--static-context`      | —              | Stable background context as inline text                            |
-| `--static-context-file` | —              | Stable background context from a file                               |
-| `--models`              | env or default | Comma-separated list of 1–3 models                                  |
-| `--temperature`         | `0.2`          | Sampling temperature                                                |
-| `--thinking`            | `medium`       | Reasoning effort: `low`, `medium`, `high` (env: `COUNCIL_THINKING`) |
+| Flag                    | Default        | Description                                                                          |
+| ----------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `--mode`                | required       | `plan_review` or `output_review`                                                     |
+| `--doctor`              | —              | Show available backends and example `--members` strings                              |
+| `--input-file`          | —              | File to review                                                                       |
+| `--text`                | —              | Inline text to review                                                                |
+| `--purpose`             | `""`           | One sentence on what this is for                                                     |
+| `--context`             | —              | Per-run situation as inline text                                                     |
+| `--context-file`        | —              | Per-run situation from a file                                                        |
+| `--static-context`      | —              | Stable background context as inline text                                             |
+| `--static-context-file` | —              | Stable background context from a file                                                |
+| `--members`             | env or default | Council members: `<backend>:<model>:<effort>,...` (env: `COUNCIL_MEMBERS`)           |
 
 Content priority: `--text` > `--input-file` > stdin.
 
-If both `--context` and `--context-file` are given, they are combined.  
+If both `--context` and `--context-file` are given, they are combined.
 Same for `--static-context` and `--static-context-file`.
 
-Default models (if `--models` and `COUNCIL_MODELS` are both unset):
-
-```bash
-openai/responses/gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview
-```
+Default members (if `--members` and `COUNCIL_MEMBERS` are both unset): the three default API models via litellm.
 
 You can also set defaults via env:
 
 ```bash
-export COUNCIL_MODELS="openai/responses/gpt-5.4,claude-opus-4-6,gemini/gemini-3.1-pro-preview"
-export COUNCIL_THINKING="high"     # low | medium | high
-                                   # high → xhigh on OpenAI Responses API
-                                   # high → adaptive thinking on Claude Opus 4.6
+export COUNCIL_MEMBERS="claude_cli:claude-opus-4-6:high,codex_cli:gpt-5.4:high,litellm:gemini/gemini-3.1-pro-preview:medium"
 ```
-
-`COUNCIL_THINKING` sets the reasoning effort when `--thinking` is not passed on the CLI. If both are set at the same time, autocouncil exits with an error.
 
 ## Output
 
