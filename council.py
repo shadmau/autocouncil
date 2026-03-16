@@ -30,11 +30,13 @@ Use only the provided context. Do not assume missing facts.
 Do not reward polished language. Judge practicality.
 Be direct and concise.
 Return STRICT JSON only with keys:
-verdict, score, main_strength, main_issue, fix_now
+verdict, score, severity, needs_input, main_strength, main_issue, fix_now
 
 Rules:
-- verdict must be one of: PASS, REVISE, BLOCK
+- verdict must be one of: PASS, REVISE
 - score must be an integer from 1 to 10
+- severity must be one of: low, medium, high — how serious is the main issue
+- needs_input: leave empty if context is sufficient; otherwise write a specific question for what information is missing
 - main_strength, main_issue, fix_now should each be one short sentence
 """
 
@@ -52,11 +54,13 @@ Use only the provided context. Do not assume missing facts.
 Do not reward style over substance.
 Be direct and concise.
 Return STRICT JSON only with keys:
-verdict, score, main_strength, main_issue, fix_now
+verdict, score, severity, needs_input, main_strength, main_issue, fix_now
 
 Rules:
-- verdict must be one of: PASS, REVISE, BLOCK
+- verdict must be one of: PASS, REVISE
 - score must be an integer from 1 to 10
+- severity must be one of: low, medium, high — how serious is the main issue
+- needs_input: leave empty if context is sufficient; otherwise write a specific question for what information is missing
 - main_strength, main_issue, fix_now should each be one short sentence
 """
 
@@ -93,7 +97,7 @@ def parse_review(raw: str) -> dict:
         data = json.loads(match.group(0))
 
     verdict = str(data.get("verdict", "REVISE")).upper().strip()
-    if verdict not in {"PASS", "REVISE", "BLOCK"}:
+    if verdict not in {"PASS", "REVISE"}:
         verdict = "REVISE"
 
     try:
@@ -102,9 +106,17 @@ def parse_review(raw: str) -> dict:
         score = 5
     score = max(1, min(10, score))
 
+    severity = str(data.get("severity", "medium")).lower().strip()
+    if severity not in {"low", "medium", "high"}:
+        severity = "medium"
+
+    needs_input = str(data.get("needs_input", "")).strip()
+
     return {
         "verdict": verdict,
         "score": score,
+        "severity": severity,
+        "needs_input": needs_input,
         "main_strength": str(data.get("main_strength", "")).strip(),
         "main_issue": str(data.get("main_issue", "")).strip(),
         "fix_now": str(data.get("fix_now", "")).strip(),
@@ -136,13 +148,15 @@ def build_review_schema() -> dict:
     return {
         "type": "object",
         "properties": {
-            "verdict": {"type": "string", "enum": ["PASS", "REVISE", "BLOCK"]},
+            "verdict": {"type": "string", "enum": ["PASS", "REVISE"]},
             "score": {"type": "integer", "minimum": 1, "maximum": 10},
+            "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+            "needs_input": {"type": "string"},
             "main_strength": {"type": "string"},
             "main_issue": {"type": "string"},
             "fix_now": {"type": "string"},
         },
-        "required": ["verdict", "score", "main_strength", "main_issue", "fix_now"],
+        "required": ["verdict", "score", "severity", "needs_input", "main_strength", "main_issue", "fix_now"],
         "additionalProperties": False,
     }
 
@@ -375,17 +389,25 @@ def summarize_texts(texts: list[str]) -> list[str]:
     return [text for text, _count in ordered[:3]]
 
 
+_SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2}
+
+
 def aggregate_verdict(reviews: list[dict]) -> str:
     counts = Counter(r["verdict"] for r in reviews)
-    n = len(reviews)
-    if n == 1:
-        return reviews[0]["verdict"]
-    threshold = 2
-    if counts["PASS"] >= threshold:
-        return "PASS"
-    if counts["BLOCK"] >= threshold:
-        return "BLOCK"
+    if len(reviews) == 1 or counts["PASS"] >= 2:
+        return reviews[0]["verdict"] if len(reviews) == 1 else "PASS"
     return "REVISE"
+
+
+def aggregate_severity(reviews: list[dict]) -> str:
+    severities = [r.get("severity", "medium") for r in reviews]
+    normalized = [s if s in _SEVERITY_ORDER else "medium" for s in severities]
+    return max(normalized, key=lambda s: _SEVERITY_ORDER[s])
+
+
+def aggregate_needs_input(reviews: list[dict]) -> str:
+    questions = [r.get("needs_input", "").strip() for r in reviews]
+    return next((q for q in questions if q), "")
 
 
 
@@ -408,6 +430,8 @@ async def run(
     return {
         "mode": mode,
         "overall_verdict": overall_verdict,
+        "severity": aggregate_severity(reviews),
+        "needs_input": aggregate_needs_input(reviews),
         "average_score": round(mean(r["score"] for r in reviews), 1),
         "top_strengths": summarize_texts([r["main_strength"] for r in reviews]),
         "top_issues": summarize_texts([r["main_issue"] for r in reviews]),
