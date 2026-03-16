@@ -1,15 +1,15 @@
 # autocouncil
 
-A CLI tool for adding self-improvement loops to OpenClaw agents.
+AutoCouncil is an LLM council for reviewing OpenClaw agent plans and outputs.
 
-Loop an OpenClaw agent’s plan or output through LLMs until it’s good enough to proceed.
+Runs Claude CLI, Codex CLI, or API models as council members. Each member scores the OpenClaw submission independently; the council aggregates their verdicts into a single judgment.
 
 ## How it works
 
-1. Send the same plan or output to 1–3 models in parallel
-2. Each returns `PASS`, `REVISE`, or `BLOCK` plus one key issue
-3. autocouncil aggregates that into one JSON verdict
-4. the agent can revise and re-run the review until the result is good enough to proceed
+1. Send the same plan or output to 1–3 council members in parallel
+2. Each member returns `PASS` or `REVISE` plus a severity, a needs_input question (if context is missing), and one key issue
+3. The council aggregates the individual verdicts into one JSON judgment
+4. The agent can revise and re-submit until the council is satisfied
 
 ## Install
 
@@ -78,7 +78,7 @@ python council.py \
   --purpose "Is this plan reasonable?"
 ```
 
-### Native CLI council members
+### Council members
 
 Use `--members` to run council members through local CLI tools instead of (or alongside) API calls.
 
@@ -109,22 +109,22 @@ See available backends with:
 python council.py --doctor
 ```
 
-1 to 3 members are supported. If a member fails (e.g. missing binary, expired auth, bad API key), the run continues with the remaining successful reviews.
+1 to 3 members are supported. If a member fails (e.g. missing binary, expired auth, bad API key), the council continues with the remaining successful verdicts.
 
 ## Options
 
-| Flag                    | Default        | Description                                                                          |
-| ----------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `--mode`                | required       | `plan_review` or `output_review`                                                     |
-| `--doctor`              | —              | Show available backends and example `--members` strings                              |
-| `--input-file`          | —              | File to review                                                                       |
-| `--text`                | —              | Inline text to review                                                                |
-| `--purpose`             | `""`           | One sentence on what this is for                                                     |
-| `--context`             | —              | Per-run situation as inline text                                                     |
-| `--context-file`        | —              | Per-run situation from a file                                                        |
-| `--static-context`      | —              | Stable background context as inline text                                             |
-| `--static-context-file` | —              | Stable background context from a file                                                |
-| `--members`             | env or default | Council members: `<backend>:<model>:<effort>,...` (env: `COUNCIL_MEMBERS`)           |
+| Flag                    | Default        | Description                                                                |
+| ----------------------- | -------------- | -------------------------------------------------------------------------- |
+| `--mode`                | required       | `plan_review` or `output_review`                                           |
+| `--doctor`              | —              | Show available backends and example `--members` strings                    |
+| `--input-file`          | —              | File to review                                                             |
+| `--text`                | —              | Inline text to review                                                      |
+| `--purpose`             | `""`           | One sentence on what this is for                                           |
+| `--context`             | —              | Per-run situation as inline text                                           |
+| `--context-file`        | —              | Per-run situation from a file                                              |
+| `--static-context`      | —              | Stable background context as inline text                                   |
+| `--static-context-file` | —              | Stable background context from a file                                      |
+| `--members`             | env or default | Council members: `<backend>:<model>:<effort>,...` (env: `COUNCIL_MEMBERS`) |
 
 Content priority: `--text` > `--input-file` > stdin.
 
@@ -147,6 +147,8 @@ autocouncil returns a single JSON object to stdout:
 {
   "mode": "plan_review",
   "overall_verdict": "PASS",
+  "severity": "low",
+  "needs_input": "",
   "average_score": 7.3,
   "top_strengths": ["Clear objective", "..."],
   "top_issues": ["Missing timeline", "..."],
@@ -156,6 +158,8 @@ autocouncil returns a single JSON object to stdout:
       "model": "gpt-5.4",
       "verdict": "PASS",
       "score": 8,
+      "severity": "low",
+      "needs_input": "",
       "main_strength": "...",
       "main_issue": "...",
       "fix_now": "..."
@@ -166,19 +170,23 @@ autocouncil returns a single JSON object to stdout:
 
 ### Verdicts
 
-- `PASS` — 2+ models voted `PASS`
-- `BLOCK` — 2+ models voted `BLOCK`
+- `PASS` — 2+ council members voted `PASS`
 - `REVISE` — everything else
+
+### Signals
+
+- `severity` — highest severity across council members: `low`, `medium`, or `high`
+- `needs_input` — if any member needed more context to assess confidently, their specific question appears here; empty otherwise
 
 ## `plan_review` vs `output_review`
 
 ### `plan_review`
 
-Judges whether a plan is good enough to act on: clear objective, concrete next steps, realistic scope, and awareness of key risks.
+The council judges whether a plan is good enough to act on: clear objective, concrete next steps, realistic scope, and awareness of key risks.
 
 ### `output_review`
 
-Judges whether an output is good enough for its intended use: correctness, usefulness, clarity, completeness, and trustworthiness for external use.
+The council judges whether an output is good enough for its intended use: correctness, usefulness, clarity, completeness, and trustworthiness for external use.
 
 ## Agent loop
 
@@ -187,10 +195,10 @@ autocouncil is designed to sit inside an OpenClaw agent loop as a self-improveme
 Typical pattern:
 
 1. the agent drafts a plan or output
-2. autocouncil reviews it
-3. if the verdict is `REVISE`, the agent improves it and runs the review again
-4. if the verdict is `PASS`, the agent proceeds
-5. if the verdict is `BLOCK`, the agent fixes the blocking issue if possible and loops; otherwise, it surfaces the issue as a blocker
+2. the council reviews it
+3. if the verdict is `REVISE`, the agent improves it and re-submits
+4. if `needs_input` is non-empty, the agent surfaces the missing context before retrying
+5. if the verdict is `PASS`, the agent proceeds
 
 ## Using AutoCouncil with OpenClaw
 
@@ -205,12 +213,12 @@ For a clean setup:
 
 ## Static context
 
-Use static context for stable background that applies to every review.
+Use static context for stable background that applies to every council run.
 
 Examples:
 
 - team defaults
-- what “good enough” means in your environment
+- what "good enough" means in your environment
 - bias toward speed vs caution
 - expectations for external-facing outputs
 
